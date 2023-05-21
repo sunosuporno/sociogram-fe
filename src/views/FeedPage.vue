@@ -5,7 +5,12 @@
     </div>
     <div class="flex flex-col items-center w-[55%] px-2">
       <PostForm />
-      <Posts :posts="posts" v-if="posts.length" @like-post="handleLikePost" />
+      <Posts
+        :posts="posts"
+        v-if="posts.length > 0"
+        @like-post="handleLikePost"
+        @add-comment="handleComment"
+      />
     </div>
     <div class="w-[19%] ml-2">
       <HomeRightBar />
@@ -38,48 +43,25 @@ export default {
     const postList = ref([])
 
     onMounted(async () => {
-      const resPosts = await fetch('http://localhost:8080/posts', options)
+      const resPosts = await fetch(`http://localhost:8080/posts/${userStore.userId}`, options)
       postList.value = await resPosts.json()
       console.log('posts', postList.value)
+    })
 
-      for (const post of postList.value) {
-        const resUser = await fetch(`http://localhost:8080/user/${post.userid}`, options)
-        const userData = await resUser.json()
-        post.firstName = userData.firstname
-        post.profilePicture = userData.profilepicture
+    const handleLikePost = (postId, isLiked, likeCount) => {
+      const postIndex = posts.value.findIndex((post) => post.postid === postId)
+      if (postIndex !== -1) {
+        posts.value[postIndex].isLiked = isLiked
+        posts.value[postIndex].likes = likeCount
+        postList.value[postIndex].isLiked = isLiked
+        postList.value[postIndex].likes = likeCount
+      }
+    }
 
-        const timestamp = new Date(post.timestamp)
-        const formattedDate = timestamp.toLocaleDateString('en-US', {
-          day: 'numeric',
-          month: 'long'
-        })
-        const formattedTime = timestamp.toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: 'numeric',
-          hour12: true
-        })
-        post.timestamp = `${formattedDate} at ${formattedTime}`
-        console.log('postId', post.postid)
-        const resComments = await fetch(`http://localhost:8080/comments/${post.postid}`, options)
-        const comments = await resComments.json()
-        post.comments = comments
-        console.log('comments', comments)
-
-        const resLikes = await fetch(`http://localhost:8080/likes/${post.postid}`, options)
-        const likesData = await resLikes.json()
-        post.likes = likesData.likeCount
-
-        console.log('userId', userStore.userId)
-
-        const resIsLiked = await fetch(
-          `http://localhost:8080/isLiked/${post.postid}/${userStore.userId}`,
-          options
-        )
-        const isLikedData = await resIsLiked.json()
-        post.isLiked = isLikedData.hasLiked
-
-        // Fetch user data for each comment
-        for (const comment of post.comments) {
+    const handleComment = async (postId, comments) => {
+      const postIndex = posts.value.findIndex((post) => post.postid === postId)
+      if (postIndex !== -1) {
+        for (const comment of comments) {
           const resUser = await fetch(`http://localhost:8080/user/${comment.userid}`, options)
           const userData = await resUser.json()
           comment.firstName = userData.firstname
@@ -96,28 +78,13 @@ export default {
           })
           comment.timestamp = `${formattedDate} at ${formattedTime}`
         }
-      }
-    })
-
-    const handleLikePost = (postId, isLiked, likeCount) => {
-      const postIndex = posts.value.findIndex((post) => post.postid === postId)
-      if (postIndex !== -1) {
-        posts.value[postIndex].isLiked = isLiked
-        posts.value[postIndex].likes = likeCount
-        postList.value[postIndex].isLiked = isLiked
-        postList.value[postIndex].likes = likeCount
+        posts.value[postIndex].comments = comments
       }
     }
 
     const posts = toRef(postList, 'value')
 
-    onMounted(() => {
-      console.log('feed page', userStore.userId)
-      console.log(userStore.displayPictureUrl)
-      console.log(posts.value)
-    })
-
-    return { userStore, posts, handleLikePost }
+    return { userStore, posts, handleLikePost, handleComment }
   }
 }
 </script>
